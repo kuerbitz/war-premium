@@ -21,6 +21,7 @@
     --series-3: #1baf7a;  /* IVV   (aqua)   */
     --warn-bg: #fff4dc;
     --warn-text: #6b4a00;
+    --band: rgba(235, 104, 52, 0.08);
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -37,6 +38,7 @@
       --series-3: #199e70;
       --warn-bg: #3a2e12;
       --warn-text: #f5d899;
+      --band: rgba(217, 89, 38, 0.14);
     }
   }
   * { box-sizing: border-box; }
@@ -89,6 +91,11 @@
   code, .formula { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--surface-0); padding: 1px 5px; border-radius: 4px; }
   a { color: var(--series-1); }
   footer { color: var(--text-muted); font-size: 13px; margin-top: 28px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 4px; margin-right: 6px; border: 1px solid var(--border); color: var(--text-secondary); }
+  .tiles.inner { margin-top: 8px; }
+  .tiles.inner .tile { background: var(--surface-0); border-color: transparent; }
+  .tile .src { font-size: 12px; margin-top: 4px; }
+  .rowlbl { font-size: 13px; font-weight: 650; color: var(--text-secondary); text-transform: uppercase; letter-spacing: .06em; margin-top: 16px; }
 </style>
 </head>
 <body>
@@ -126,16 +133,30 @@
 
 <!-- 2 ─────────────────────────────────────────────────────────── -->
 <section class="card">
-  <h2>2 · The bond side: term premium and duration</h2>
+  <h2>2 · Tomahawk by the numbers</h2>
+  <p class="sub">The war's signature naval weapon, from published reporting only. Each figure links to the outlet
+    that reported it; these are fixed numbers "as reported," not live data. The second row is computed on this page
+    from the first.</p>
+  <div class="rowlbl">As reported</div>
+  <div class="tiles inner" id="tomReported"></div>
+  <div class="rowlbl">Computed from those figures</div>
+  <div class="tiles inner" id="tomComputed"></div>
+  <p class="note">Figures reported as "more than" (e.g. 1,000+ fired) are used at their lower bound, so computed values
+    are minimums. Inputs are listed in the TOMAHAWK block of this page's source code.</p>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────────────────── -->
+<section class="card">
+  <h2>3 · The bond side: term premium and duration</h2>
   <p class="sub"><b>Term premium:</b> the extra yield investors demand to hold a 10-year Treasury instead of
     rolling over short-term bills. <b>Modified duration:</b> roughly the % a 10-year Treasury's price falls
-    if its yield rises 1 percentage point. Same window as the chart above.</p>
+    if its yield rises 1 percentage point. Same window as chart 1.</p>
   <div id="chartBonds" class="chart tall"></div>
 </section>
 
 <!-- 3 ─────────────────────────────────────────────────────────── -->
 <section class="card">
-  <h2>3 · The test: do term-premium moves line up with defense stocks?</h2>
+  <h2>4 · The test: do term-premium moves line up with defense stocks?</h2>
   <p class="sub">Each dot is one week. <b>Across:</b> how much the term premium changed that week.
     <b>Up:</b> how much the defense series beat (or trailed) the S&amp;P 500 that week, as a log return.
     If war-driven borrowing pushed up the term premium <i>and</i> defense stocks together, the dots would
@@ -164,7 +185,7 @@
 
 <!-- 4 ─────────────────────────────────────────────────────────── -->
 <section class="card">
-  <h2>4 · What happened right after each event</h2>
+  <h2>5 · What happened right after each event</h2>
   <p class="sub">Change from the last close <i>before</i> each event to
     <input type="number" id="nDays" min="1" max="120" value="20"> trading days later
     (20 trading days ≈ one month). Returns are log returns (CCR), in %.</p>
@@ -172,9 +193,19 @@
   <p class="note" id="evNote"></p>
 </section>
 
+<!-- 6 ─────────────────────────────────────────────────────────── -->
+<section class="card">
+  <h2>6 · Risk and return: before vs. since the war</h2>
+  <p class="sub">Did defense stocks become riskier, or more tied to the market, once the war started? All figures use
+    <b>daily log returns</b>. Return is annualized ×252, volatility ×√252, Sharpe = (R<sub>p</sub> − r<sub>f</sub>) / σ<sub>p</sub>,
+    and beta / alpha are the slope / intercept of a line through each stock's daily returns against IVV's.</p>
+  <div class="scroll"><table class="ev" id="riskTable"></table></div>
+  <p class="note" id="riskNote"></p>
+</section>
+
 <!-- 5 ─────────────────────────────────────────────────────────── -->
 <section class="card findings">
-  <h2>5 · What the numbers say right now</h2>
+  <h2>7 · What the numbers say right now</h2>
   <div id="findings"></div>
   <p class="note">These sentences are generated from the data each time the page loads, so they stay current.
     A relationship in the data is not proof that one thing caused the other.</p>
@@ -192,6 +223,12 @@
       yield and its price is 100, which gives a closed form (20 semiannual periods):
       <span class="formula">D<sub>mod</sub> = (1/y) × [1 − (1 + y/2)<sup>−20</sup>]</span> years.
       Example: y = 4.00% → (1/0.04) × [1 − 1.02<sup>−20</sup>] = 8.18 years.</dd>
+    <dt>Volatility, Sharpe ratio, beta, alpha</dt>
+    <dd>Volatility = population standard deviation of daily log returns × √252 (Excel <code>STDEV.P</code>).
+      Sharpe = (annualized return − r<sub>f</sub>) / annualized volatility, where r<sub>f</sub> is the average 3-month
+      T-bill yield over the same window, converted from its bond-equivalent quote to a continuously compounded rate:
+      <span class="formula">r<sub>f</sub> = 2 × ln(1 + y/2)</span>. Beta = Cov(r, r<sub>IVV</sub>) / Var(r<sub>IVV</sub>)
+      (Excel <code>SLOPE</code>); alpha = (mean r − β × mean r<sub>IVV</sub>) × 252 (Excel <code>INTERCEPT</code> × 252).</dd>
     <dt>Term premium</dt>
     <dd>Kim–Wright (2005) three-factor model estimate, published by the Federal Reserve Board.
       It is a model estimate, not a market price, and is released with a lag of about a week.</dd>
@@ -227,15 +264,46 @@ const CONFIG = {
   windowStart: "2021-11-01",   // first day shown (5-year window)
   warStart:    "2026-02-28",   // U.S./Israeli strikes on Iran begin (a Saturday)
   bondPeriods: 20,             // 10-year bond = 20 semiannual coupon periods
-  events: [
-    { date: "2022-02-24", label: "Russia invades Ukraine" },
-    { date: "2026-02-28", label: "Iran war begins",
+  events: [   // type: Conflict = military events, Funding = war-cost requests, Tomahawk = procurement
+    { date: "2022-02-24", type: "Conflict", label: "Russia invades Ukraine" },
+    { date: "2026-02-28", type: "Conflict", label: "U.S.–Israeli strikes on Iran begin",
       url: "https://aa.com.tr/en/americas/us-so-far-burned-through-years-of-munitions-in-iran-war-report/3862870" },
-    { date: "2026-04-21", label: "FY2027 budget asks for 785 Tomahawks (vs. 55)",
+    { date: "2026-03-19", type: "Funding", label: "Reports: Pentagon seeks $200B+ for the war",
+      url: "https://app.al-monitor.com/originals/2026/03/huge-trump-iran-war-funding-request-faces-stiff-opposition-congress" },
+    { date: "2026-04-08", type: "Conflict", label: "Two-week ceasefire (announced evening of Apr 7)",
+      url: "https://en.wikipedia.org/wiki/2026_Iran_war_ceasefire" },
+    { date: "2026-04-21", type: "Tomahawk", label: "FY2027 budget asks for 785 Tomahawks (vs. 55)",
       url: "https://www.cp24.com/news/world/2026/04/21/us-military-pushes-for-boost-in-2027-spending-on-drones-and-air-defences-used-in-iran-war/" },
-    { date: "2026-08-17", label: "$22.9B Tomahawk contract to Raytheon",
+    { date: "2026-06-24", type: "Funding", label: "$87.6B war supplemental sent to Congress",
+      url: "https://www.defensenews.com/news/pentagon-congress/2026/06/24/white-house-asks-congress-for-876-billion-mostly-for-iran-war/" },
+    { date: "2026-07-08", type: "Conflict", label: "Ceasefire ends; strikes resume over Hormuz",
+      url: "https://en.wikipedia.org/wiki/2026_Iran_war_ceasefire" },
+    { date: "2026-08-17", type: "Tomahawk", label: "$22.9B, 7-year Tomahawk contract to Raytheon",
       url: "https://www.washingtonexaminer.com/?p=4689497" },
   ],
+};
+
+/* Tomahawk figures: published reporting only, each with its source. "min: true" = reported as "more than". */
+const SRC = {
+  wex: { name: "Washington Examiner, Aug 17, 2026", url: "https://www.washingtonexaminer.com/?p=4689497" },
+  aa:  { name: "Anadolu Agency, Mar 13, 2026", url: "https://aa.com.tr/en/americas/us-so-far-burned-through-years-of-munitions-in-iran-war-report/3862870" },
+  nwk: { name: "Newsweek, Aug 2026", url: "https://www.newsweek.com/pentagon-awards-nearly-23bn-for-us-navy-most-important-strike-weapon-tomahawk-missiles-12331225" },
+  cp24:{ name: "AP via CP24, Apr 21, 2026", url: "https://www.cp24.com/news/world/2026/04/21/us-military-pushes-for-boost-in-2027-spending-on-drones-and-air-defences-used-in-iran-war/" },
+  rtx: { name: "RTX 2025 results, Jan 27, 2026", url: "https://www.rtx.com/news/news-center/2026/01/27/rtx-reports-2025-results-and-announces-2026-outlook" },
+};
+const TOMAHAWK = {
+  inventoryPreWar:   { v: 3100,    label: "Navy inventory before the war (CSIS estimate)", src: SRC.wex, fmt: "n" },
+  firedFirst100h:    { v: 168,     label: "Fired in the first 100 hours (CSIS estimate)", src: SRC.aa, fmt: "n" },
+  firedFirstMonth:   { v: 850,     label: "Fired in the first month (Washington Post)", src: SRC.wex, fmt: "n", min: true },
+  firedByLateApril:  { v: 1000,    label: "Fired Feb 28 – late April (Wall Street Journal)", src: SRC.nwk, fmt: "n", min: true },
+  fy26Buy:           { v: 55,      label: "Bought by DoD last year", src: SRC.cp24, fmt: "n" },
+  fy27Buy:           { v: 785,     label: "Requested in the FY2027 budget", src: SRC.wex, fmt: "n" },
+  fy27Dollars:       { v: 3.0e9,   label: "FY2027 replenishment request", src: SRC.wex, fmt: "$" },
+  contractDollars:   { v: 22.9e9,  label: "Raytheon contract (Aug 17, 2026)", src: SRC.wex, fmt: "$" },
+  contractYears:     { v: 7,       label: "Contract length (years)", src: SRC.wex, fmt: "n" },
+  targetRate:        { v: 1000,    label: "Production goal (missiles per year)", src: SRC.wex, fmt: "n", min: true },
+  rtxSales2025:      { v: 88.6e9,  label: "RTX total sales, 2025", src: SRC.rtx, fmt: "$" },
+  raytheonSales2025: { v: 28.04e9, label: "Raytheon segment sales, 2025", src: SRC.rtx, fmt: "$" },
 };
 
 /* ===================================================================
@@ -324,7 +392,8 @@ function init(json) {
     `<div><b>${k}</b> · ${v.label} · ${v.units} · <a href="${v.source_url}">${v.source}</a></div>`).join("");
 
   $("eventKey").innerHTML = CONFIG.events.map((e, i) =>
-    `<li><b>${i + 1}</b>${fmtDate(e.date)}: ${e.url ? `<a href="${e.url}">${e.label}</a>` : e.label}</li>`).join("");
+    `<li><b>${i + 1}</b><span class="tag">${e.type}</span>${fmtDate(e.date)}: ${e.url ? `<a href="${e.url}">${e.label}</a>` : e.label}</li>`).join("") +
+    `<li style="grid-column:1/-1;color:var(--text-muted)">The 5-year view shades the war period; switch to “Since the Iran war” to see markers 2–8.</li>`;
   $("priceNote").textContent = `Prices: ${D.IVV.source}, ${D.IVV.units.replace("$/share, ", "")}.`;
 
   document.querySelectorAll(".seg").forEach((seg) => {
@@ -337,7 +406,7 @@ function init(json) {
   });
   $("nDays").addEventListener("input", drawEvents);
 
-  drawTiles(); drawPrices(); drawBonds(); drawScatter(); drawEvents(); drawFindings();
+  drawTiles(); drawPrices(); drawTomahawk(); drawBonds(); drawScatter(); drawEvents(); drawRisk(); drawFindings();
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
     drawPrices(); drawBonds(); drawScatter();
   });
@@ -370,8 +439,16 @@ const CFG = { displayModeBar: false, responsive: true };
 
 function eventMarks(x0, x1) {
   const shapes = [], annotations = [];
+  const full = state.range === "full";
+  if (full && CONFIG.warStart <= x1) {   // 5-year view: shade the war period instead of crowding 7 markers
+    shapes.push({ type: "rect", xref: "x", yref: "paper", x0: CONFIG.warStart, x1, y0: 0, y1: 1,
+      fillcolor: css("--band"), line: { width: 0 }, layer: "below" });
+    annotations.push({ x: CONFIG.warStart, y: 1, xref: "x", yref: "paper", yanchor: "bottom", xanchor: "right",
+      showarrow: false, text: "Iran war ▸", font: { size: 11, color: css("--text-secondary") } });
+  }
   CONFIG.events.forEach((e, i) => {
     if (e.date < x0 || e.date > x1) return;
+    if (full && e.date >= CONFIG.warStart) return;
     shapes.push({ type: "line", xref: "x", yref: "paper", x0: e.date, x1: e.date, y0: 0, y1: 1,
       line: { color: css("--text-muted"), width: 1, dash: "dot" } });
     annotations.push({ x: e.date, y: 1, xref: "x", yref: "paper", yanchor: "bottom", showarrow: false,
@@ -549,13 +626,88 @@ function drawEvents() {
 }
 
 /* ===================================================================
-   Section 5: auto-generated findings
+   Section 2: Tomahawk card
+   =================================================================== */
+function money(v) { return v >= 1e9 ? "$" + (v / 1e9).toFixed(v >= 1e10 ? 1 : 2) + "B" : "$" + (v / 1e6).toFixed(2) + "M"; }
+function drawTomahawk() {
+  const T = TOMAHAWK, srcLink = (s) => `<div class="src"><a href="${s.url}">${s.name}</a></div>`;
+  const show = ["inventoryPreWar", "firedFirst100h", "firedFirstMonth", "firedByLateApril", "fy26Buy", "fy27Buy", "contractDollars"];
+  $("tomReported").innerHTML = show.map((k) => {
+    const x = T[k], val = x.fmt === "$" ? money(x.v) : x.v.toLocaleString("en-US") + (x.min ? "+" : "");
+    const extra = k === "contractDollars" ? ` <span class="unit">/ ${T.contractYears.v} yrs</span>` : "";
+    return `<div class="tile"><div class="lbl">${x.label}</div><div class="val">${val}${extra}</div>${srcLink(x.src)}</div>`;
+  }).join("");
+
+  const unitCost = T.fy27Dollars.v / T.fy27Buy.v;                       // $ per missile
+  const shareFired = T.firedByLateApril.v / T.inventoryPreWar.v;        // fraction of inventory
+  const yearsOfBuys = T.firedByLateApril.v / T.fy26Buy.v;               // years of last year's purchase rate
+  const replaceCost = T.firedByLateApril.v * unitCost;                  // $
+  const perYear = T.contractDollars.v / T.contractYears.v;              // $ per year
+  const comp = [
+    ["Implied cost per missile", money(unitCost), `$${(T.fy27Dollars.v / 1e9).toFixed(1)}B ÷ ${T.fy27Buy.v} missiles`],
+    ["Share of pre-war inventory fired by late April", "≥" + (100 * shareFired).toFixed(0) + "%", `${T.firedByLateApril.v.toLocaleString()} ÷ ${T.inventoryPreWar.v.toLocaleString()}`],
+    ["Years of last year's buying rate used up", "≥" + yearsOfBuys.toFixed(0) + " yrs", `${T.firedByLateApril.v.toLocaleString()} ÷ ${T.fy26Buy.v} per year`],
+    ["Cost to replace those missiles", "≥" + money(replaceCost), `${T.firedByLateApril.v.toLocaleString()} × ${money(unitCost)}`],
+    ["Contract value per year", money(perYear), `= ${(100 * perYear / T.rtxSales2025.v).toFixed(1)}% of RTX's 2025 sales, ${(100 * perYear / T.raytheonSales2025.v).toFixed(1)}% of the Raytheon segment's`],
+  ];
+  $("tomComputed").innerHTML = comp.map(([l, v, f]) =>
+    `<div class="tile"><div class="lbl">${l}</div><div class="val">${v}</div><div class="foot">${f}</div></div>`).join("") +
+    "";
+}
+
+/* ===================================================================
+   Section 6: risk metrics, before vs. since the war
+   =================================================================== */
+function riskStats(t, from, to) {
+  const ds = days.filter((d) => d >= from && d <= to);
+  const r = [], m = [];
+  for (let i = 1; i < ds.length; i++) {
+    r.push(Math.log(px[t].get(ds[i]) / px[t].get(ds[i - 1])));
+    m.push(Math.log(px.IVV.get(ds[i]) / px.IVV.get(ds[i - 1])));
+  }
+  const n = r.length, mean = (a) => a.reduce((x, y) => x + y, 0) / a.length;
+  const mr = mean(r), mm = mean(m);
+  let vr = 0, vm = 0, cv = 0;
+  for (let i = 0; i < n; i++) { vr += (r[i] - mr) ** 2; vm += (m[i] - mm) ** 2; cv += (r[i] - mr) * (m[i] - mm); }
+  vr /= n; vm /= n; cv /= n;                                            // population (STDEV.P / COVARIANCE.P)
+  const bills = D.UST3M ? D.UST3M.data.filter((p) => p[0] > from && p[0] <= to).map((p) => p[1]) : [];
+  const yBill = bills.length ? mean(bills) : NaN;                       // average 3-mo bill, %/yr bond-equivalent
+  const rf = 100 * 2 * Math.log(1 + yBill / 200);                       // → continuously compounded, %/yr
+  const R = 100 * 252 * mr, vol = 100 * Math.sqrt(252) * Math.sqrt(vr);
+  const beta = cv / vm;
+  return { n, from: ds[0], to: ds[ds.length - 1], R, vol, rf, yBill, sharpe: (R - rf) / vol, beta,
+    alpha: 100 * 252 * (mr - beta * mm), corr: cv / Math.sqrt(vr * vm) };
+}
+function drawRisk() {
+  const base = baseDayBefore(CONFIG.warStart), last = days[days.length - 1];
+  const wins = [["Before the war", CONFIG.windowStart, base], ["Since the war", base, last]];
+  let rows = "", notes = [];
+  for (const t of ["RTX", "ITA", "IVV"]) {
+    wins.forEach(([name, a, b], j) => {
+      const x = riskStats(t, a, b);
+      if (t === "RTX") notes.push(`${name}: ${fmtDate(x.from)} → ${fmtDate(x.to)}, ${x.n} daily returns, r<sub>f</sub> = ${fmt(x.yBill)}% avg 3-mo bill → ${fmt(x.rf)}% CCR`);
+      const isMkt = t === "IVV";
+      rows += `<tr${j === 1 ? ' style="border-bottom:2px solid var(--border)"' : ""}><td>${j === 0 ? `<b>${t}</b>` : ""}</td><td style="text-align:left">${name}</td>
+        <td>${sgn(x.R, 1)}</td><td>${fmt(x.vol, 1)}</td><td><b>${sgn(x.sharpe, 2)}</b></td>
+        <td>${isMkt ? "1.00" : fmt(x.beta, 2)}</td><td>${isMkt ? "—" : sgn(x.alpha, 1)}</td><td>${isMkt ? "1.00" : fmt(x.corr, 2)}</td></tr>`;
+    });
+  }
+  $("riskTable").innerHTML = `<tr><th>Series</th><th style="text-align:left">Window</th><th>Return<br>(CCR, %/yr)</th>
+    <th>Volatility<br>(%/√yr)</th><th>Sharpe</th><th>Beta<br>vs IVV</th><th>Alpha vs IVV<br>(%/yr)</th><th>Correlation<br>with IVV</th></tr>` + rows;
+  $("riskNote").innerHTML = notes.join("<br>") +
+    "<br>The since-war window is under a year long, so its annualized figures are noisy: treat them as descriptive, not forecasts.";
+}
+
+/* ===================================================================
+   Section 7: auto-generated findings
    =================================================================== */
 function drawFindings() {
   const base = baseDayBefore(CONFIG.warStart), last = days[days.length - 1];
   const tp0 = onOrBefore(D.TP10.data, base), tp1 = D.TP10.data[D.TP10.data.length - 1];
   const y0 = onOrBefore(D.UST10.data, base), y1 = D.UST10.data[D.UST10.data.length - 1];
   const r = (t) => ccr(px[t].get(base), px[t].get(last));
+  const rkPre = riskStats("ITA", CONFIG.windowStart, base), rkWar = riskStats("ITA", base, last);
+  const rkMktWar = riskStats("IVV", base, last);
   const fitWar = ols(...(() => { const w = weeklyRows("ITA").filter((x) => x.end > CONFIG.warStart); return [w.map((x) => x.x), w.map((x) => x.y)]; })());
   const fitPre = ols(...(() => { const w = weeklyRows("ITA").filter((x) => x.end < CONFIG.warStart); return [w.map((x) => x.x), w.map((x) => x.y)]; })());
   $("findings").innerHTML = `
@@ -568,7 +720,10 @@ function drawFindings() {
       ${fmt(Math.abs(r("ITA") - r("IVV")), 1)} percentage points.</p>
     <p><b>Week by week.</b> Since the war, R² between weekly term-premium changes and ITA's excess return is
       ${fitWar ? fmt(fitWar.r2, 3) : "—"} (n = ${fitWar ? fitWar.n : 0} weeks, slope ${fitWar ? sgn(fitWar.slope) : "—"}% per pp);
-      before the war it was ${fitPre ? fmt(fitPre.r2, 3) : "—"} (n = ${fitPre ? fitPre.n : 0}).</p>`;
+      before the war it was ${fitPre ? fmt(fitPre.r2, 3) : "—"} (n = ${fitPre ? fitPre.n : 0}).</p>
+    <p><b>Risk.</b> ITA's beta against the S&amp;P 500 went from ${fmt(rkPre.beta)} before the war to ${fmt(rkWar.beta)} since,
+      its annualized volatility from ${fmt(rkPre.vol, 1)}% to ${fmt(rkWar.vol, 1)}%, and its Sharpe ratio from
+      ${sgn(rkPre.sharpe)} to ${sgn(rkWar.sharpe)} (IVV: ${sgn(rkMktWar.sharpe)} since the war).</p>`;
 }
 </script>
 </body>

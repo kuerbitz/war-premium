@@ -7,6 +7,7 @@ open-source data and writes it to data/data.json, which the web page reads.
 
 Series pulled
   UST10  10-year Treasury par yield (CMT), from Treasury.gov  (fallback: FRED DGS10)
+  UST3M  3-month Treasury bill yield (CMT), same Treasury file  (fallback: FRED DGS3MO); the risk-free rate
   TP10   10-year term premium, Kim-Wright model, from the Federal Reserve Board
          (column THREEFYTP1000.B; fallback: the same series on FRED, THREEFYTP10)
   RTX    RTX Corp. (Raytheon's parent) daily prices
@@ -78,8 +79,9 @@ def clean(points):
 
 
 # ---------------------------------------------------------------- rates
-def treasury_10y():
-    pts = []
+def treasury_curve():
+    """Return {'10 Yr': points, '3 Mo': points} from Treasury's daily par yield curve files."""
+    cols = {"10 Yr": [], "3 Mo": []}
     for year in range(START.year, TODAY.year + 1):
         url = (
             "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
@@ -87,11 +89,12 @@ def treasury_10y():
             f"&field_tdr_date_value={year}&page&_format=csv"
         )
         for row in csv.DictReader(io.StringIO(get(url))):
-            v = (row.get("10 Yr") or "").strip()
-            if v:
-                d = dt.datetime.strptime(row["Date"].strip(), "%m/%d/%Y").date().isoformat()
-                pts.append([d, round(float(v), 4)])
-    return check(clean(pts), "UST10 (Treasury)", 10)
+            d = dt.datetime.strptime(row["Date"].strip(), "%m/%d/%Y").date().isoformat()
+            for c in cols:
+                v = (row.get(c) or "").strip()
+                if v:
+                    cols[c].append([d, round(float(v), 4)])
+    return {c: check(clean(pts), f"Treasury {c}", 10) for c, pts in cols.items()}
 
 
 def fed_board_tp10():
@@ -193,21 +196,27 @@ def main():
         else:
             print(f"ERROR {key}: no previous data to fall back on", file=sys.stderr)
 
-    # 10-year Treasury yield
+    # Treasury yields: 10-year (for duration) and 3-month bill (risk-free rate for Sharpe)
+    tsy_url = "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve"
+    curve = None
     try:
-        pts, src, url = treasury_10y(), "U.S. Treasury, Daily Treasury Par Yield Curve Rates (10 Yr)", \
-            "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve"
+        curve = treasury_curve()
+        srcs = {"10 Yr": ("U.S. Treasury, Daily Treasury Par Yield Curve Rates (10 Yr)", tsy_url),
+                "3 Mo": ("U.S. Treasury, Daily Treasury Par Yield Curve Rates (3 Mo)", tsy_url)}
     except Exception as e:  # noqa: BLE001
-        print(f"Treasury failed ({e}); trying FRED DGS10", file=sys.stderr)
+        print(f"Treasury failed ({e}); trying FRED DGS10 / DGS3MO", file=sys.stderr)
         try:
-            pts, src, url = fred("DGS10", 10), "U.S. Treasury 10-Year CMT via FRED (DGS10)", \
-                "https://fred.stlouisfed.org/series/DGS10"
+            curve = {"10 Yr": fred("DGS10", 10), "3 Mo": fred("DGS3MO", 10)}
+            srcs = {"10 Yr": ("U.S. Treasury 10-Year CMT via FRED (DGS10)", "https://fred.stlouisfed.org/series/DGS10"),
+                    "3 Mo": ("U.S. Treasury 3-Month CMT via FRED (DGS3MO)", "https://fred.stlouisfed.org/series/DGS3MO")}
         except Exception as e2:  # noqa: BLE001
-            pts = None
             keep_old("UST10", e2)
-    if pts:
+            keep_old("UST3M", e2)
+    if curve:
         out["UST10"] = {"label": "10-year Treasury par yield", "units": "%/yr, bond-equivalent (semiannual)",
-                        "source": src, "source_url": url, "status": "ok", "data": pts}
+                        "source": srcs["10 Yr"][0], "source_url": srcs["10 Yr"][1], "status": "ok", "data": curve["10 Yr"]}
+        out["UST3M"] = {"label": "3-month Treasury bill yield (risk-free rate)", "units": "%/yr, bond-equivalent",
+                        "source": srcs["3 Mo"][0], "source_url": srcs["3 Mo"][1], "status": "ok", "data": curve["3 Mo"]}
 
     # 10-year term premium (Kim-Wright). Published with a lag of about a week, so allow 30 days.
     tp = None
