@@ -7,7 +7,8 @@ open-source data and writes it to data/data.json, which the web page reads.
 
 Series pulled
   UST10  10-year Treasury par yield (CMT), from Treasury.gov  (fallback: FRED DGS10)
-  TP10   10-year term premium, Kim-Wright model, Federal Reserve Board via FRED (THREEFYTP10)
+  TP10   10-year term premium, Kim-Wright model, from the Federal Reserve Board
+         (column THREEFYTP1000.B; fallback: the same series on FRED, THREEFYTP10)
   RTX    RTX Corp. (Raytheon's parent) daily prices
   ITA    iShares U.S. Aerospace & Defense ETF daily prices
   IVV    iShares Core S&P 500 ETF daily prices (the market benchmark)
@@ -44,13 +45,13 @@ STOCKS = {"RTX": "stocks", "ITA": "etf", "IVV": "etf"}  # ticker -> Nasdaq asset
 
 
 # ---------------------------------------------------------------- helpers
-def get(url, headers=None, tries=3):
+def get(url, headers=None, tries=3, timeout=40):
     """Download a URL and return its text, retrying with a pause on failure."""
     last = None
     for i in range(tries):
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, **(headers or {})})
-            with urllib.request.urlopen(req, timeout=40) as r:
+            req = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "*/*", **(headers or {})})
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read().decode("utf-8", errors="replace")
         except Exception as e:  # noqa: BLE001 -- log and retry any network error
             last = e
@@ -93,9 +94,31 @@ def treasury_10y():
     return check(clean(pts), "UST10 (Treasury)", 10)
 
 
+def fed_board_tp10():
+    """Kim-Wright 10-year term premium straight from the Federal Reserve Board's data page."""
+    txt = get("https://www.federalreserve.gov/data/yield-curve-tables/feds200533.csv", timeout=90)
+    rows = list(csv.reader(io.StringIO(txt)))
+    hdr_i = next(i for i, r in enumerate(rows) if r and r[0].strip().lower() == "date" and "THREEFYTP1000.B" in r)
+    col = rows[hdr_i].index("THREEFYTP1000.B")
+    pts = []
+    for r in rows[hdr_i + 1:]:
+        if len(r) <= col or r[col].strip() in ("", ".", "NA", "ND"):
+            continue
+        raw = r[0].strip()
+        for f in ("%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
+            try:
+                d = dt.datetime.strptime(raw, f).date().isoformat()
+                break
+            except ValueError:
+                d = None
+        if d:
+            pts.append([d, round(float(r[col]), 4)])
+    return check(clean(pts), "TP10 (Federal Reserve Board)", 30)
+
+
 def fred(series_id, max_age_days):
     url = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}&cosd={START.isoformat()}"
-    rows = list(csv.reader(io.StringIO(get(url))))
+    rows = list(csv.reader(io.StringIO(get(url, tries=2, timeout=90))))
     pts = []
     for r in rows[1:]:  # first row is the header: observation_date (or DATE), SERIES
         if len(r) >= 2 and r[1].strip() not in ("", "."):
@@ -187,14 +210,20 @@ def main():
                         "source": src, "source_url": url, "status": "ok", "data": pts}
 
     # 10-year term premium (Kim-Wright). Published with a lag of about a week, so allow 30 days.
+    tp = None
     try:
-        pts = fred("THREEFYTP10", 30)
-        out["TP10"] = {"label": "10-year term premium (Kim-Wright)", "units": "percentage points",
-                       "source": "Federal Reserve Board, Kim-Wright model, via FRED (THREEFYTP10)",
-                       "source_url": "https://fred.stlouisfed.org/series/THREEFYTP10",
-                       "status": "ok", "data": pts}
+        tp = (fed_board_tp10(), "Federal Reserve Board, Kim-Wright three-factor model (THREEFYTP1000.B)",
+              "https://www.federalreserve.gov/data/three-factor-nominal-term-structure-model.htm")
     except Exception as e:  # noqa: BLE001
-        keep_old("TP10", e)
+        print(f"Fed Board term premium failed ({e}); trying FRED", file=sys.stderr)
+        try:
+            tp = (fred("THREEFYTP10", 30), "Federal Reserve Board, Kim-Wright model, via FRED (THREEFYTP10)",
+                  "https://fred.stlouisfed.org/series/THREEFYTP10")
+        except Exception as e2:  # noqa: BLE001
+            keep_old("TP10", e2)
+    if tp:
+        out["TP10"] = {"label": "10-year term premium (Kim-Wright)", "units": "percentage points",
+                       "source": tp[1], "source_url": tp[2], "status": "ok", "data": tp[0]}
 
     # Stocks: all three tickers from the same source
     got = None
