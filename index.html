@@ -1,0 +1,575 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>War Premium: Did the Iran War Move the Bond Market?</title>
+<meta name="description" content="Defense stocks (RTX, ITA) vs. the S&P 500 (IVV), tested against the 10-year Treasury term premium and duration. Open-source data, refreshed every weekday.">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-0: #f4f3f0;
+    --surface-1: #fcfcfb;
+    --border: #e2e1dc;
+    --grid: #ebeae6;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #7a7974;
+    --series-1: #2a78d6;  /* RTX   (blue)   */
+    --series-2: #eb6834;  /* ITA   (orange) */
+    --series-3: #1baf7a;  /* IVV   (aqua)   */
+    --warn-bg: #fff4dc;
+    --warn-text: #6b4a00;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-0: #121211;
+      --surface-1: #1a1a19;
+      --border: #2e2e2b;
+      --grid: #2a2a27;
+      --text-primary: #f0efec;
+      --text-secondary: #c3c2b7;
+      --text-muted: #9a998f;
+      --series-1: #3987e5;
+      --series-2: #d95926;
+      --series-3: #199e70;
+      --warn-bg: #3a2e12;
+      --warn-text: #f5d899;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--surface-0); color: var(--text-primary);
+    font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 1000px; margin: 0 auto; padding: 32px 20px 64px; }
+  header .kicker { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-muted); font-weight: 600; }
+  h1 { font-size: clamp(28px, 4vw, 40px); line-height: 1.15; margin: 6px 0 10px; letter-spacing: -0.01em; }
+  h2 { font-size: 22px; margin: 0 0 4px; }
+  h3 { font-size: 16px; margin: 18px 0 6px; }
+  .lede { font-size: 18px; color: var(--text-secondary); max-width: 760px; margin: 0; }
+  .status { font-size: 13px; color: var(--text-muted); margin-top: 14px; }
+  .warn { background: var(--warn-bg); color: var(--warn-text); border-radius: 8px; padding: 10px 14px; font-size: 14px; margin-top: 12px; }
+  section.card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 14px; padding: 22px 22px 18px; margin-top: 22px; }
+  .sub { color: var(--text-secondary); margin: 0 0 12px; font-size: 15px; }
+  .note { color: var(--text-muted); font-size: 13px; margin: 8px 0 0; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 22px; }
+  .tile { background: var(--surface-1); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+  .tile .lbl { font-size: 13px; color: var(--text-secondary); }
+  .tile .val { font-size: 28px; font-weight: 650; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tile .unit { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
+  .tile .foot { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 16px; align-items: center; margin: 4px 0 10px; font-size: 14px; color: var(--text-secondary); }
+  .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .seg button { background: transparent; border: 0; padding: 6px 12px; font: inherit; color: var(--text-secondary); cursor: pointer; }
+  .seg button + button { border-left: 1px solid var(--border); }
+  .seg button[aria-pressed="true"] { background: var(--text-primary); color: var(--surface-1); }
+  input[type=number] { width: 64px; font: inherit; padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-1); color: var(--text-primary); }
+  .chart { width: 100%; height: 380px; }
+  .chart.tall { height: 470px; }
+  .events { list-style: none; padding: 0; margin: 10px 0 0; font-size: 13px; color: var(--text-secondary); display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 4px 16px; }
+  .events b { display: inline-block; width: 18px; height: 18px; line-height: 18px; text-align: center; border-radius: 50%; border: 1px solid var(--text-muted); font-size: 11px; margin-right: 6px; color: var(--text-primary); }
+  .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .grid2 { grid-template-columns: 1fr; } }
+  .stats { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .stats td { padding: 6px 0; border-bottom: 1px solid var(--grid); }
+  .stats td:last-child { text-align: right; font-weight: 600; }
+  .stats .u { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+  .readout { background: var(--surface-0); border-radius: 10px; padding: 12px 14px; font-size: 14px; margin-top: 12px; color: var(--text-primary); }
+  table.ev { border-collapse: collapse; width: 100%; font-size: 14px; font-variant-numeric: tabular-nums; }
+  table.ev th, table.ev td { padding: 8px 8px; border-bottom: 1px solid var(--grid); text-align: right; white-space: nowrap; }
+  table.ev th { font-size: 12px; color: var(--text-secondary); font-weight: 600; vertical-align: bottom; }
+  table.ev th:first-child, table.ev td:first-child { text-align: left; white-space: normal; }
+  .scroll { overflow-x: auto; }
+  .findings p { margin: 0 0 10px; }
+  .method dt { font-weight: 650; margin-top: 12px; }
+  .method dd { margin: 2px 0 0; color: var(--text-secondary); }
+  code, .formula { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 13px; background: var(--surface-0); padding: 1px 5px; border-radius: 4px; }
+  a { color: var(--series-1); }
+  footer { color: var(--text-muted); font-size: 13px; margin-top: 28px; }
+</style>
+</head>
+<body>
+<main>
+
+<header>
+  <div class="kicker">War Premium</div>
+  <h1>Did the Iran war move the bond market?</h1>
+  <p class="lede">Defense stocks (RTX, ITA) against the S&amp;P 500 (IVV), tested against the 10-year Treasury
+    term premium and a Treasury duration measure. Every number below is computed in your browser from
+    open-source data refreshed every weekday.</p>
+  <div class="status" id="status">Loading data…</div>
+  <div id="warnings"></div>
+</header>
+
+<div class="tiles" id="tiles"></div>
+
+<!-- 1 ─────────────────────────────────────────────────────────── -->
+<section class="card">
+  <h2>1 · Defense stocks vs. the market</h2>
+  <p class="sub">Each series is set to 100 on the first day shown, so all three start together.
+    A line above 100 has gained since then; the gap between ITA (defense) and IVV (market) is the
+    defense sector's out- or under-performance.</p>
+  <div class="controls">
+    <span>Window</span>
+    <span class="seg" data-group="range">
+      <button aria-pressed="true" data-v="full">5 years</button>
+      <button aria-pressed="false" data-v="war">Since the Iran war</button>
+    </span>
+  </div>
+  <div id="chartPrices" class="chart"></div>
+  <ul class="events" id="eventKey"></ul>
+  <p class="note" id="priceNote"></p>
+</section>
+
+<!-- 2 ─────────────────────────────────────────────────────────── -->
+<section class="card">
+  <h2>2 · The bond side: term premium and duration</h2>
+  <p class="sub"><b>Term premium:</b> the extra yield investors demand to hold a 10-year Treasury instead of
+    rolling over short-term bills. <b>Modified duration:</b> roughly the % a 10-year Treasury's price falls
+    if its yield rises 1 percentage point. Same window as the chart above.</p>
+  <div id="chartBonds" class="chart tall"></div>
+</section>
+
+<!-- 3 ─────────────────────────────────────────────────────────── -->
+<section class="card">
+  <h2>3 · The test: do term-premium moves line up with defense stocks?</h2>
+  <p class="sub">Each dot is one week. <b>Across:</b> how much the term premium changed that week.
+    <b>Up:</b> how much the defense series beat (or trailed) the S&amp;P 500 that week, as a log return.
+    If war-driven borrowing pushed up the term premium <i>and</i> defense stocks together, the dots would
+    slope upward. Weekly changes are used instead of levels so two unrelated trends can't fake a relationship.</p>
+  <div class="controls">
+    <span>Defense series</span>
+    <span class="seg" data-group="def">
+      <button aria-pressed="true" data-v="ITA">ITA (sector ETF)</button>
+      <button aria-pressed="false" data-v="RTX">RTX (Raytheon parent)</button>
+    </span>
+    <span>Weeks</span>
+    <span class="seg" data-group="win">
+      <button aria-pressed="true" data-v="full">All 5 years</button>
+      <button aria-pressed="false" data-v="pre">Before the war</button>
+      <button aria-pressed="false" data-v="war">Since the war</button>
+    </span>
+  </div>
+  <div class="grid2">
+    <div id="chartScatter" class="chart"></div>
+    <div>
+      <table class="stats" id="olsStats"></table>
+      <div class="readout" id="olsRead"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 4 ─────────────────────────────────────────────────────────── -->
+<section class="card">
+  <h2>4 · What happened right after each event</h2>
+  <p class="sub">Change from the last close <i>before</i> each event to
+    <input type="number" id="nDays" min="1" max="120" value="20"> trading days later
+    (20 trading days ≈ one month). Returns are log returns (CCR), in %.</p>
+  <div class="scroll"><table class="ev" id="evTable"></table></div>
+  <p class="note" id="evNote"></p>
+</section>
+
+<!-- 5 ─────────────────────────────────────────────────────────── -->
+<section class="card findings">
+  <h2>5 · What the numbers say right now</h2>
+  <div id="findings"></div>
+  <p class="note">These sentences are generated from the data each time the page loads, so they stay current.
+    A relationship in the data is not proof that one thing caused the other.</p>
+</section>
+
+<!-- 6 ─────────────────────────────────────────────────────────── -->
+<section class="card method">
+  <h2>Method &amp; sources</h2>
+  <dl>
+    <dt>Log return (CCR)</dt>
+    <dd><span class="formula">r = ln(P<sub>end</sub> / P<sub>start</sub>)</span>, shown ×100 as %.
+      Log returns add across time, which is why they're used throughout.</dd>
+    <dt>Modified duration of the 10-year Treasury</dt>
+    <dd>Computed from the 10-year <i>par</i> yield <span class="formula">y</span>. A par bond's coupon equals its
+      yield and its price is 100, which gives a closed form (20 semiannual periods):
+      <span class="formula">D<sub>mod</sub> = (1/y) × [1 − (1 + y/2)<sup>−20</sup>]</span> years.
+      Example: y = 4.00% → (1/0.04) × [1 − 1.02<sup>−20</sup>] = 8.18 years.</dd>
+    <dt>Term premium</dt>
+    <dd>Kim–Wright (2005) three-factor model estimate, published by the Federal Reserve Board.
+      It is a model estimate, not a market price, and is released with a lag of about a week.</dd>
+    <dt>Weekly sampling</dt>
+    <dd>For each series the last available observation in each calendar week (Mon–Sun) is used. A weekly
+      change is only computed between back-to-back weeks.</dd>
+    <dt>Line of best fit</dt>
+    <dd>Ordinary least squares (OLS): slope = Σ(x−x̄)(y−ȳ) / Σ(x−x̄)², intercept = ȳ − slope·x̄,
+      R² = correlation². R² is the share of the week-to-week variation in the defense series' excess return
+      that term-premium changes explain.</dd>
+    <dt>Event dates</dt>
+    <dd>Chosen from news reports before looking at the market data. Each window starts at the last close
+      before the event, so the event's own reaction is included.</dd>
+    <dt>Data sources (all public)</dt>
+    <dd id="sourceList"></dd>
+    <dt>Raw data</dt>
+    <dd><a href="data/data.json">data/data.json</a>, rewritten every weekday by a scheduled
+      <a href="https://github.com/kuerbitz/war-premium/blob/main/scripts/update_data.py">script</a>
+      running on GitHub Actions.</dd>
+  </dl>
+</section>
+
+<footer>
+  Built for Duke ENGRMGMT/FINTECH 534 (Fall 2026). Educational project using public data only; not investment advice.
+</footer>
+</main>
+
+<script>
+/* ===================================================================
+   INPUTS: every assumption the page uses, in one place
+   =================================================================== */
+const CONFIG = {
+  windowStart: "2021-11-01",   // first day shown (5-year window)
+  warStart:    "2026-02-28",   // U.S./Israeli strikes on Iran begin (a Saturday)
+  bondPeriods: 20,             // 10-year bond = 20 semiannual coupon periods
+  events: [
+    { date: "2022-02-24", label: "Russia invades Ukraine" },
+    { date: "2026-02-28", label: "Iran war begins",
+      url: "https://aa.com.tr/en/americas/us-so-far-burned-through-years-of-munitions-in-iran-war-report/3862870" },
+    { date: "2026-04-21", label: "FY2027 budget asks for 785 Tomahawks (vs. 55)",
+      url: "https://www.cp24.com/news/world/2026/04/21/us-military-pushes-for-boost-in-2027-spending-on-drones-and-air-defences-used-in-iran-war/" },
+    { date: "2026-08-17", label: "$22.9B Tomahawk contract to Raytheon",
+      url: "https://www.washingtonexaminer.com/?p=4689497" },
+  ],
+};
+
+/* ===================================================================
+   Small helpers
+   =================================================================== */
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = (v, d = 2) => (v == null || !isFinite(v)) ? "—" : v.toFixed(d);
+const sgn = (v, d = 2) => (v == null || !isFinite(v)) ? "—" : (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(d);
+const fmtDate = (s) => new Date(s + "T00:00:00Z").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const DAY = 86400000;
+
+// value on the given date, or the most recent one before it (binary search on a sorted [date, value] list)
+function onOrBefore(arr, date) {
+  let lo = 0, hi = arr.length - 1, ans = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (arr[mid][0] <= date) { ans = arr[mid]; lo = mid + 1; } else hi = mid - 1;
+  }
+  return ans; // [date, value] or null
+}
+
+// Modified duration of a 10-year Treasury bought at par, from its yield in %/yr
+function modDuration(yPct) {
+  const y = yPct / 100;
+  return (1 / y) * (1 - Math.pow(1 + y / 2, -CONFIG.bondPeriods));
+}
+
+const ccr = (p0, p1) => 100 * Math.log(p1 / p0); // log return, in %
+
+// Monday of the calendar week containing date s
+function weekKey(s) {
+  const d = new Date(s + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+// Map weekKey -> [lastDateInWeek, value]
+function weekly(arr) {
+  const m = new Map();
+  for (const p of arr) m.set(weekKey(p[0]), p);
+  return m;
+}
+
+function ols(xs, ys) {
+  const n = xs.length;
+  if (n < 3) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0, sxx = 0, syy = 0;
+  for (let i = 0; i < n; i++) {
+    const dx = xs[i] - mx, dy = ys[i] - my;
+    sxy += dx * dy; sxx += dx * dx; syy += dy * dy;
+  }
+  const slope = sxy / sxx, intercept = my - slope * mx, r = sxy / Math.sqrt(sxx * syy);
+  return { n, slope, intercept, r, r2: r * r };
+}
+
+/* ===================================================================
+   Load data and build the derived series
+   =================================================================== */
+let D = {};          // raw series by key
+let days = [];       // trading days where RTX, ITA and IVV all have prices (>= windowStart)
+let px = {};         // ticker -> Map(date -> price)
+const state = { range: "full", def: "ITA", win: "full" };
+
+fetch("data/data.json", { cache: "no-store" })
+  .then((r) => { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+  .then(init)
+  .catch((e) => {
+    $("status").textContent = "Could not load data/data.json (" + e.message + "). " +
+      "If you opened this file directly from your computer, view it through its GitHub Pages address instead.";
+  });
+
+function init(json) {
+  D = json.series;
+  for (const t of ["RTX", "ITA", "IVV"]) px[t] = new Map(D[t].data);
+  days = D.IVV.data.map((p) => p[0])
+    .filter((d) => d >= CONFIG.windowStart && px.RTX.has(d) && px.ITA.has(d));
+
+  const lastTP = D.TP10.last, lastStock = days[days.length - 1], lastUST = D.UST10.last;
+  $("status").innerHTML = `Data refreshed ${json.generated_utc}. Latest observations: stocks ${fmtDate(lastStock)} · ` +
+    `10-yr yield ${fmtDate(lastUST)} · term premium ${fmtDate(lastTP)} (published with about a 1-week lag).`;
+  const stale = Object.entries(D).filter(([, v]) => v.status !== "ok");
+  $("warnings").innerHTML = stale.map(([k, v]) => `<div class="warn">${k}: ${v.status}</div>`).join("");
+
+  $("sourceList").innerHTML = Object.entries(D).map(([k, v]) =>
+    `<div><b>${k}</b> · ${v.label} · ${v.units} · <a href="${v.source_url}">${v.source}</a></div>`).join("");
+
+  $("eventKey").innerHTML = CONFIG.events.map((e, i) =>
+    `<li><b>${i + 1}</b>${fmtDate(e.date)}: ${e.url ? `<a href="${e.url}">${e.label}</a>` : e.label}</li>`).join("");
+  $("priceNote").textContent = `Prices: ${D.IVV.source}, ${D.IVV.units.replace("$/share, ", "")}.`;
+
+  document.querySelectorAll(".seg").forEach((seg) => {
+    seg.addEventListener("click", (ev) => {
+      const b = ev.target.closest("button"); if (!b) return;
+      seg.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+      state[seg.dataset.group] = b.dataset.v;
+      if (seg.dataset.group === "range") { drawPrices(); drawBonds(); } else drawScatter();
+    });
+  });
+  $("nDays").addEventListener("input", drawEvents);
+
+  drawTiles(); drawPrices(); drawBonds(); drawScatter(); drawEvents(); drawFindings();
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    drawPrices(); drawBonds(); drawScatter();
+  });
+}
+
+// last trading day strictly before a date
+function baseDayBefore(date) {
+  let b = null;
+  for (const d of days) { if (d < date) b = d; else break; }
+  return b;
+}
+
+/* ===================================================================
+   Plot styling shared by every chart
+   =================================================================== */
+function baseLayout(extra = {}) {
+  return Object.assign({
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: { family: getComputedStyle(document.body).fontFamily, size: 12, color: css("--text-secondary") },
+    margin: { l: 56, r: 16, t: 28, b: 40 },
+    hoverlabel: { bgcolor: css("--surface-1"), bordercolor: css("--border"), font: { color: css("--text-primary") } },
+    legend: { orientation: "h", x: 0, y: 1.12, font: { color: css("--text-primary") } },
+  }, extra);
+}
+const axis = (extra = {}) => Object.assign({
+  gridcolor: css("--grid"), zerolinecolor: css("--border"), linecolor: css("--border"),
+  tickfont: { color: css("--text-secondary") }, automargin: true,
+}, extra);
+const CFG = { displayModeBar: false, responsive: true };
+
+function eventMarks(x0, x1) {
+  const shapes = [], annotations = [];
+  CONFIG.events.forEach((e, i) => {
+    if (e.date < x0 || e.date > x1) return;
+    shapes.push({ type: "line", xref: "x", yref: "paper", x0: e.date, x1: e.date, y0: 0, y1: 1,
+      line: { color: css("--text-muted"), width: 1, dash: "dot" } });
+    annotations.push({ x: e.date, y: 1, xref: "x", yref: "paper", yanchor: "bottom", showarrow: false,
+      text: String(i + 1), font: { size: 11, color: css("--text-primary") },
+      bordercolor: css("--text-muted"), borderwidth: 1, borderpad: 2, bgcolor: css("--surface-1") });
+  });
+  return { shapes, annotations };
+}
+
+function rangeDays() {
+  if (state.range === "war") {
+    const b = baseDayBefore(CONFIG.warStart);
+    return days.filter((d) => d >= b);
+  }
+  return days;
+}
+
+/* ===================================================================
+   Tiles
+   =================================================================== */
+function drawTiles() {
+  const base = baseDayBefore(CONFIG.warStart), last = days[days.length - 1];
+  const tpNow = D.TP10.data[D.TP10.data.length - 1], tpBase = onOrBefore(D.TP10.data, base);
+  const yNow = D.UST10.data[D.UST10.data.length - 1];
+  const exITA = ccr(px.ITA.get(base), px.ITA.get(last)) - ccr(px.IVV.get(base), px.IVV.get(last));
+  const tiles = [
+    ["10-yr term premium", fmt(tpNow[1]), "pp", `as of ${fmtDate(tpNow[0])}`],
+    ["Term premium change since the war", sgn(tpNow[1] - tpBase[1]), "pp", `from ${fmtDate(tpBase[0])}`],
+    ["10-yr Treasury yield", fmt(yNow[1]), "%/yr", `as of ${fmtDate(yNow[0])}`],
+    ["10-yr modified duration", fmt(modDuration(yNow[1])), "years", "computed from the yield"],
+    ["ITA minus IVV since the war", sgn(exITA, 1), "%", `log return, ${fmtDate(base)} → ${fmtDate(last)}`],
+  ];
+  $("tiles").innerHTML = tiles.map(([l, v, u, f]) =>
+    `<div class="tile"><div class="lbl">${l}</div><div class="val">${v} <span class="unit">${u}</span></div><div class="foot">${f}</div></div>`).join("");
+}
+
+/* ===================================================================
+   Chart 1: prices indexed to 100
+   =================================================================== */
+function drawPrices() {
+  const ds = rangeDays(), d0 = ds[0];
+  const colors = { RTX: css("--series-1"), ITA: css("--series-2"), IVV: css("--series-3") };
+  const names = { RTX: "RTX", ITA: "ITA (defense ETF)", IVV: "IVV (S&P 500)" };
+  const traces = ["RTX", "ITA", "IVV"].map((t) => ({
+    x: ds, y: ds.map((d) => 100 * px[t].get(d) / px[t].get(d0)),
+    name: names[t], type: "scatter", mode: "lines", line: { color: colors[t], width: 2 },
+    hovertemplate: "%{y:.1f}<extra>" + t + "</extra>",
+  }));
+  const ev = eventMarks(ds[0], ds[ds.length - 1]);
+  Plotly.react("chartPrices", traces, baseLayout({
+    hovermode: "x unified", shapes: ev.shapes, annotations: ev.annotations,
+    margin: { l: 56, r: 16, t: 70, b: 40 }, legend: { orientation: "h", x: 0, y: 1.22, font: { color: css("--text-primary") } },
+    xaxis: axis({ type: "date" }),
+    yaxis: axis({ title: { text: `Index (${fmtDate(d0)} = 100)` } }),
+  }), CFG);
+}
+
+/* ===================================================================
+   Chart 2: term premium and duration (two panels, one x-axis)
+   =================================================================== */
+function drawBonds() {
+  const ds = rangeDays(), x0 = ds[0], x1 = ds[ds.length - 1];
+  const tp = D.TP10.data.filter((p) => p[0] >= x0);
+  const ust = D.UST10.data.filter((p) => p[0] >= x0);
+  const traces = [
+    { x: tp.map((p) => p[0]), y: tp.map((p) => p[1]), type: "scatter", mode: "lines",
+      line: { color: css("--series-1"), width: 2 }, name: "Term premium", showlegend: false,
+      xaxis: "x", yaxis: "y", hovertemplate: "%{y:.2f} pp<extra>Term premium</extra>" },
+    { x: ust.map((p) => p[0]), y: ust.map((p) => modDuration(p[1])), type: "scatter", mode: "lines",
+      line: { color: css("--series-1"), width: 2 }, name: "Modified duration", showlegend: false,
+      xaxis: "x", yaxis: "y2", hovertemplate: "%{y:.2f} yrs<extra>Duration</extra>" },
+  ];
+  const ev = eventMarks(x0, x1);
+  ev.annotations.push(
+    { text: "<b>10-yr term premium</b> (percentage points)", xref: "paper", yref: "paper", x: 0, y: 1.0, yanchor: "bottom",
+      xanchor: "left", showarrow: false, yshift: 18, font: { color: css("--text-primary"), size: 13 } },
+    { text: "<b>10-yr Treasury modified duration</b> (years)", xref: "paper", yref: "paper", x: 0, y: 0.44, yanchor: "bottom",
+      xanchor: "left", showarrow: false, font: { color: css("--text-primary"), size: 13 } });
+  Plotly.react("chartBonds", traces, baseLayout({
+    hovermode: "x unified", shapes: ev.shapes, annotations: ev.annotations,
+    margin: { l: 56, r: 16, t: 48, b: 40 },
+    xaxis: axis({ type: "date", range: [x0, x1], anchor: "y2" }),
+    yaxis: axis({ domain: [0.56, 1] }),
+    yaxis2: axis({ domain: [0, 0.42] }),
+  }), CFG);
+}
+
+/* ===================================================================
+   Chart 3: weekly scatter + OLS
+   =================================================================== */
+function weeklyRows(defTicker) {
+  const tpW = weekly(D.TP10.data), dW = weekly(D[defTicker].data), mW = weekly(D.IVV.data);
+  const keys = [...tpW.keys()].filter((k) => k >= weekKey(CONFIG.windowStart) && dW.has(k) && mW.has(k)).sort();
+  const rows = [];
+  for (let i = 1; i < keys.length; i++) {
+    const k0 = keys[i - 1], k1 = keys[i];
+    if (new Date(k1) - new Date(k0) !== 7 * DAY) continue;   // back-to-back weeks only
+    const x = tpW.get(k1)[1] - tpW.get(k0)[1];                                   // pp
+    const y = ccr(dW.get(k0)[1], dW.get(k1)[1]) - ccr(mW.get(k0)[1], mW.get(k1)[1]); // %
+    rows.push({ end: dW.get(k1)[0], x, y });
+  }
+  return rows;
+}
+
+function drawScatter() {
+  const all = weeklyRows(state.def);
+  const pre = all.filter((r) => r.end < CONFIG.warStart), war = all.filter((r) => r.end > CONFIG.warStart);
+  const use = state.win === "pre" ? pre : state.win === "war" ? war : all;
+  const fit = ols(use.map((r) => r.x), use.map((r) => r.y));
+  const ring = { color: css("--surface-1"), width: 1 };
+  const dot = (rows, name, color) => ({
+    x: rows.map((r) => r.x), y: rows.map((r) => r.y), text: rows.map((r) => fmtDate(r.end)),
+    type: "scatter", mode: "markers", name, marker: { size: 8, color, line: ring, opacity: 0.85 },
+    hovertemplate: "Week ending %{text}<br>Δ term premium %{x:+.3f} pp<br>Excess return %{y:+.2f}%<extra></extra>",
+  });
+  const traces = [];
+  if (state.win !== "war") traces.push(dot(pre, "Weeks before the war", css("--series-1")));
+  if (state.win !== "pre") traces.push(dot(war, "Weeks since the war", css("--series-2")));
+  if (fit) {
+    const xs = use.map((r) => r.x), lo = Math.min(...xs), hi = Math.max(...xs);
+    traces.push({ x: [lo, hi], y: [fit.intercept + fit.slope * lo, fit.intercept + fit.slope * hi],
+      type: "scatter", mode: "lines", name: "OLS line of best fit",
+      line: { color: css("--text-primary"), width: 2 }, hoverinfo: "skip" });
+  }
+  Plotly.react("chartScatter", traces, baseLayout({
+    hovermode: "closest", margin: { l: 60, r: 16, t: 40, b: 48 },
+    xaxis: axis({ title: { text: "Weekly change in 10-yr term premium (pp)" }, zeroline: true }),
+    yaxis: axis({ title: { text: `${state.def} minus IVV, weekly log return (%)` }, zeroline: true }),
+  }), CFG);
+
+  if (!fit) { $("olsStats").innerHTML = ""; $("olsRead").textContent = "Not enough weeks in this window yet."; return; }
+  const span = `${fmtDate(use[0].end)} – ${fmtDate(use[use.length - 1].end)}`;
+  $("olsStats").innerHTML = [
+    ["Weeks (n)", fit.n, ""],
+    ["Slope", sgn(fit.slope, 2), "% per pp"],
+    ["Intercept", sgn(fit.intercept, 3), "% per week"],
+    ["Correlation (r)", sgn(fit.r, 2), ""],
+    ["R²", fmt(fit.r2, 3), ""],
+  ].map(([l, v, u]) => `<tr><td>${l} <span class="u">${u}</span></td><td>${v}</td></tr>`).join("");
+  const strength = fit.r2 < 0.05 ? "essentially no" : fit.r2 < 0.15 ? "a weak" : fit.r2 < 0.35 ? "a moderate" : "a strong";
+  $("olsRead").innerHTML = `<b>Reading it:</b> over ${span}, term-premium changes explain
+    ${(100 * fit.r2).toFixed(1)}% of the week-to-week swings in ${state.def}'s return relative to the S&amp;P 500:
+    ${strength} relationship. On average, in a week when the term premium rose 0.10 pp, ${state.def}'s excess return
+    averaged ${sgn(fit.slope * 0.10, 2)}% (plus the intercept).`;
+}
+
+/* ===================================================================
+   Table 4: event windows
+   =================================================================== */
+function drawEvents() {
+  const N = Math.max(1, Math.min(120, parseInt($("nDays").value, 10) || 20));
+  let notes = new Set();
+  const rows = CONFIG.events.map((e, i) => {
+    const base = baseDayBefore(e.date);
+    if (!base) return "";
+    const bi = days.indexOf(base);
+    let ei = bi + N, partial = false;
+    if (ei > days.length - 1) { ei = days.length - 1; partial = true; }
+    const end = days[ei];
+    const tp0 = onOrBefore(D.TP10.data, base), tp1 = onOrBefore(D.TP10.data, end);
+    const tpLag = tp1 && tp1[0] < end;
+    const y0 = onOrBefore(D.UST10.data, base), y1 = onOrBefore(D.UST10.data, end);
+    const r = (t) => ccr(px[t].get(base), px[t].get(end));
+    if (partial) notes.add(`* Window not finished yet: only ${ei - bi} trading days have passed.`);
+    if (tpLag) notes.add(`† Term premium data only run through ${fmtDate(D.TP10.last)}, so its change stops there.`);
+    return `<tr><td><b>${i + 1}</b> · ${e.label}<br><span class="u" style="color:var(--text-muted);font-size:12px">${fmtDate(base)} → ${fmtDate(end)}${partial ? "*" : ""}</span></td>
+      <td>${sgn(tp1[1] - tp0[1], 2)}${tpLag ? "†" : ""}</td>
+      <td>${sgn(modDuration(y1[1]) - modDuration(y0[1]), 2)}</td>
+      <td>${sgn(r("RTX"), 1)}</td><td>${sgn(r("ITA"), 1)}</td><td>${sgn(r("IVV"), 1)}</td>
+      <td><b>${sgn(r("ITA") - r("IVV"), 1)}</b></td></tr>`;
+  });
+  $("evTable").innerHTML = `<tr><th>Event and window</th><th>Δ Term premium<br>(pp)</th><th>Δ Duration<br>(years)</th>
+    <th>RTX<br>(%)</th><th>ITA<br>(%)</th><th>IVV<br>(%)</th><th>ITA − IVV<br>(%)</th></tr>` + rows.join("");
+  $("evNote").textContent = [...notes].join(" ");
+}
+
+/* ===================================================================
+   Section 5: auto-generated findings
+   =================================================================== */
+function drawFindings() {
+  const base = baseDayBefore(CONFIG.warStart), last = days[days.length - 1];
+  const tp0 = onOrBefore(D.TP10.data, base), tp1 = D.TP10.data[D.TP10.data.length - 1];
+  const y0 = onOrBefore(D.UST10.data, base), y1 = D.UST10.data[D.UST10.data.length - 1];
+  const r = (t) => ccr(px[t].get(base), px[t].get(last));
+  const fitWar = ols(...(() => { const w = weeklyRows("ITA").filter((x) => x.end > CONFIG.warStart); return [w.map((x) => x.x), w.map((x) => x.y)]; })());
+  const fitPre = ols(...(() => { const w = weeklyRows("ITA").filter((x) => x.end < CONFIG.warStart); return [w.map((x) => x.x), w.map((x) => x.y)]; })());
+  $("findings").innerHTML = `
+    <p><b>Bond side.</b> From the last close before the war (${fmtDate(base)}) to ${fmtDate(tp1[0])}, the 10-year term
+      premium went from ${fmt(tp0[1])} to ${fmt(tp1[1])} pp (${sgn(tp1[1] - tp0[1])} pp). Through ${fmtDate(y1[0])} the
+      10-year yield moved ${fmt(y0[1])}% → ${fmt(y1[1])}%, taking modified duration from ${fmt(modDuration(y0[1]))} to
+      ${fmt(modDuration(y1[1]))} years.</p>
+    <p><b>Stock side.</b> Over ${fmtDate(base)} → ${fmtDate(last)}: RTX ${sgn(r("RTX"), 1)}%, ITA ${sgn(r("ITA"), 1)}%,
+      IVV ${sgn(r("IVV"), 1)}% (log returns), so the defense ETF ${r("ITA") > r("IVV") ? "beat" : "trailed"} the market by
+      ${fmt(Math.abs(r("ITA") - r("IVV")), 1)} percentage points.</p>
+    <p><b>Week by week.</b> Since the war, R² between weekly term-premium changes and ITA's excess return is
+      ${fitWar ? fmt(fitWar.r2, 3) : "—"} (n = ${fitWar ? fitWar.n : 0} weeks, slope ${fitWar ? sgn(fitWar.slope) : "—"}% per pp);
+      before the war it was ${fitPre ? fmt(fitPre.r2, 3) : "—"} (n = ${fitPre ? fitPre.n : 0}).</p>`;
+}
+</script>
+</body>
+</html>
