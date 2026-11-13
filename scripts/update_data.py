@@ -8,8 +8,8 @@ open-source data and writes it to data/data.json, which the web page reads.
 Series pulled
   UST10  10-year Treasury par yield (CMT), from Treasury.gov  (fallback: FRED DGS10)
   UST3M  3-month Treasury bill yield (CMT), same Treasury file  (fallback: FRED DGS3MO); the risk-free rate
-  TP10   10-year term premium, Kim-Wright model, from the Federal Reserve Board
-         (column THREEFYTP1000.B; fallback: the same series on FRED, THREEFYTP10)
+  TP10   10-year term premium, Adrian-Crump-Moench (ACM) model, from the New York Fed
+         (column ACMTP10; fallback: the same series on FRED, ACMTP10)
   RTX    RTX Corp. (Raytheon's parent) daily prices
   ITA    iShares U.S. Aerospace & Defense ETF daily prices
   IVV    iShares Core S&P 500 ETF daily prices (the market benchmark)
@@ -19,7 +19,8 @@ all three tickers; if any ticker fails, all three fall back together to Nasdaq.c
 then Stooq, so the three always share one source and one price basis.
 
 If a source fails, the previous day's data for that series is kept and marked
-"stale" so the page can say so. Uses only the Python standard library.
+"stale" so the page can say so. Uses the Python standard library plus xlrd
+(to read the New York Fed's .xls file; installed by the workflow).
 """
 
 import csv
@@ -97,26 +98,49 @@ def treasury_curve():
     return {c: check(clean(pts), f"Treasury {c}", 10) for c, pts in cols.items()}
 
 
-def fed_board_tp10():
-    """Kim-Wright 10-year term premium straight from the Federal Reserve Board's data page."""
-    txt = get("https://www.federalreserve.gov/data/yield-curve-tables/feds200533.csv", timeout=90)
-    rows = list(csv.reader(io.StringIO(txt)))
-    hdr_i = next(i for i, r in enumerate(rows) if r and r[0].strip().lower() == "date" and "THREEFYTP1000.B" in r)
-    col = rows[hdr_i].index("THREEFYTP1000.B")
-    pts = []
-    for r in rows[hdr_i + 1:]:
-        if len(r) <= col or r[col].strip() in ("", ".", "NA", "ND"):
-            continue
-        raw = r[0].strip()
-        for f in ("%Y-%m-%d", "%d-%m-%Y", "%m/%d/%Y"):
-            try:
-                d = dt.datetime.strptime(raw, f).date().isoformat()
-                break
-            except ValueError:
-                d = None
-        if d:
-            pts.append([d, round(float(r[col]), 4)])
-    return check(clean(pts), "TP10 (Federal Reserve Board)", 30)
+def nyfed_acm_tp10():
+    """ACM 10-year term premium straight from the New York Fed's data file (.xls)."""
+    import xlrd  # installed by the GitHub workflow
+    url = "https://www.newyorkfed.org/medialibrary/media/research/data_indicators/ACMTermPremium.xls"
+    req = urllib.request.Request(url, headers={"User-Agent": BROWSER_UA, "Accept": "*/*"})
+    last = None
+    for i in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=90) as r:
+                raw = r.read()
+            break
+        except Exception as e:  # noqa: BLE001
+            last = e
+            time.sleep(3 * (i + 1))
+    else:
+        raise RuntimeError(f"GET failed: {url} ({last})")
+    book = xlrd.open_workbook(file_contents=raw)
+    sheets = sorted(book.sheets(), key=lambda sh: "daily" not in sh.name.lower())  # daily sheet first
+    for sh in sheets:
+        for hr in range(min(sh.nrows, 20)):
+            hdr = [str(v).strip().upper() for v in sh.row_values(hr)]
+            if "ACMTP10" in hdr and "DATE" in hdr:
+                dcol, vcol = hdr.index("DATE"), hdr.index("ACMTP10")
+                pts = []
+                for r in range(hr + 1, sh.nrows):
+                    dv, vv = sh.cell_value(r, dcol), sh.cell_value(r, vcol)
+                    if vv in ("", None):
+                        continue
+                    if isinstance(dv, float):
+                        d = xlrd.xldate_as_datetime(dv, book.datemode).date()
+                    else:
+                        d = None
+                        for f in ("%d-%b-%Y", "%Y-%m-%d", "%m/%d/%Y", "%d-%b-%y"):
+                            try:
+                                d = dt.datetime.strptime(str(dv).strip(), f).date()
+                                break
+                            except ValueError:
+                                pass
+                    if d:
+                        pts.append([d.isoformat(), round(float(vv), 4)])
+                if len(pts) > 300:
+                    return check(clean(pts), "TP10 (New York Fed ACM)", 45)
+    raise ValueError("ACMTP10 column not found in the New York Fed file")
 
 
 def fred(series_id, max_age_days):
@@ -218,20 +242,20 @@ def main():
         out["UST3M"] = {"label": "3-month Treasury bill yield (risk-free rate)", "units": "%/yr, bond-equivalent",
                         "source": srcs["3 Mo"][0], "source_url": srcs["3 Mo"][1], "status": "ok", "data": curve["3 Mo"]}
 
-    # 10-year term premium (Kim-Wright). Published with a lag of about a week, so allow 30 days.
+    # 10-year term premium (ACM, New York Fed). Allow up to 45 days of publication lag.
     tp = None
     try:
-        tp = (fed_board_tp10(), "Federal Reserve Board, Kim-Wright three-factor model (THREEFYTP1000.B)",
-              "https://www.federalreserve.gov/data/three-factor-nominal-term-structure-model.htm")
+        tp = (nyfed_acm_tp10(), "Federal Reserve Bank of New York, Adrian-Crump-Moench (ACM) model (ACMTP10)",
+              "https://www.newyorkfed.org/research/data_indicators/term-premia-tabs")
     except Exception as e:  # noqa: BLE001
-        print(f"Fed Board term premium failed ({e}); trying FRED", file=sys.stderr)
+        print(f"New York Fed ACM failed ({e}); trying FRED ACMTP10", file=sys.stderr)
         try:
-            tp = (fred("THREEFYTP10", 30), "Federal Reserve Board, Kim-Wright model, via FRED (THREEFYTP10)",
-                  "https://fred.stlouisfed.org/series/THREEFYTP10")
+            tp = (fred("ACMTP10", 45), "Federal Reserve Bank of New York, ACM model, via FRED (ACMTP10)",
+                  "https://fred.stlouisfed.org/series/ACMTP10")
         except Exception as e2:  # noqa: BLE001
             keep_old("TP10", e2)
     if tp:
-        out["TP10"] = {"label": "10-year term premium (Kim-Wright)", "units": "percentage points",
+        out["TP10"] = {"label": "10-year term premium (ACM)", "units": "percentage points",
                        "source": tp[1], "source_url": tp[2], "status": "ok", "data": tp[0]}
 
     # Stocks: all three tickers from the same source

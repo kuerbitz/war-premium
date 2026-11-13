@@ -28,6 +28,9 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install the .xls reader (for the New York Fed term-premium file)
+        run: pip install xlrd==2.0.1
+
       - name: Fetch latest open-source data
         run: python scripts/update_data.py
 

@@ -230,8 +230,9 @@
       <span class="formula">r<sub>f</sub> = 2 × ln(1 + y/2)</span>. Beta = Cov(r, r<sub>IVV</sub>) / Var(r<sub>IVV</sub>)
       (Excel <code>SLOPE</code>); alpha = (mean r − β × mean r<sub>IVV</sub>) × 252 (Excel <code>INTERCEPT</code> × 252).</dd>
     <dt>Term premium</dt>
-    <dd>Kim–Wright (2005) three-factor model estimate, published by the Federal Reserve Board.
-      It is a model estimate, not a market price, and is released with a lag of about a week.</dd>
+    <dd>Adrian–Crump–Moench (ACM, 2013) model estimate, published by the Federal Reserve Bank of New York:
+      the 10-year Treasury yield split into the expected path of short rates plus the term premium
+      (ACMY = ACMRNY + ACMTP). It is a model estimate, not a market price, and is published with a lag.</dd>
     <dt>Weekly sampling</dt>
     <dd>For each series the last available observation in each calendar week (Mon–Sun) is used. A weekly
       change is only computed between back-to-back weeks.</dd>
@@ -384,7 +385,7 @@ function init(json) {
 
   const lastTP = D.TP10.last, lastStock = days[days.length - 1], lastUST = D.UST10.last;
   $("status").innerHTML = `Data refreshed ${json.generated_utc}. Latest observations: stocks ${fmtDate(lastStock)} · ` +
-    `10-yr yield ${fmtDate(lastUST)} · term premium ${fmtDate(lastTP)} (published with about a 1-week lag).`;
+    `10-yr yield ${fmtDate(lastUST)} · term premium ${fmtDate(lastTP)} (published with a lag).`;
   const stale = Object.entries(D).filter(([, v]) => v.status !== "ok");
   $("warnings").innerHTML = stale.map(([k, v]) => `<div class="warn">${k}: ${v.status}</div>`).join("");
 
